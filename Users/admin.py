@@ -19,9 +19,9 @@ def unlock_users(modeladmin, request, queryset):
 
 class CustomUserAdmin(UserAdmin):
     model = CustomUser
-    list_display = ('username', 'email', 'phone_number', 'is_active', 'is_locked', 'last_login', 'failed_login_attempts', 'last_password_change', 'is_2fa_enabled')
-    list_filter = ('is_active', 'is_staff', 'is_locked', 'date_joined')
-    search_fields = ('username', 'email', 'phone_number', 'social_id')
+    list_display = ('username', 'email', 'phone_number', 'is_active', 'is_locked', 'last_login', 'failed_login_attempts', 'last_password_change', 'is_2fa_enabled', 'preferred_speaking_style')
+    list_filter = ('is_active', 'is_staff', 'is_locked', 'date_joined', 'preferred_speaking_style')
+    search_fields = ('username', 'email', 'phone_number', 'social_id', 'preferred_speaking_style')
     ordering = ('date_joined',)
     readonly_fields = ('unique_id', 'last_login', 'date_joined', 'last_password_change')
     actions = [lock_users, unlock_users]
@@ -29,7 +29,7 @@ class CustomUserAdmin(UserAdmin):
 
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
-        ('Personal info', {'fields': ('unique_id', 'email', 'phone_number', 'first_name', 'last_name', 'service_agreement', 'privacy_agreement', 'promotion_agreement')}),
+        ('Personal info', {'fields': ('unique_id', 'email', 'phone_number', 'first_name', 'last_name', 'service_agreement', 'privacy_agreement', 'promotion_agreement','preferred_speaking_style')}),
         ('Social info', {'fields': ('social_type', 'social_id')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined', 'last_password_change')}),
@@ -40,7 +40,7 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'email', 'phone_number', 'password1', 'password2', 'service_agreement', 'privacy_agreement'),
+            'fields': ('username', 'email', 'phone_number', 'password1', 'password2', 'service_agreement', 'privacy_agreement', 'preferred_speaking_style'),
         }),
     )
 

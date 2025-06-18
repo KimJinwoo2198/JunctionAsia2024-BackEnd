@@ -135,7 +135,7 @@ class FoodViewSet(viewsets.ModelViewSet):
                 result['safety_info'] = "안전 정보를 가져오는 중 오류가 발생했습니다."
 
             try:
-                result['nutritional_advice'] = get_nutritional_advice(result['food_name'], request.user)
+                result['nutritional_advice'] = get_nutritional_advice(result['food_name'], request.user, response_style)
             except Exception as e:
                 logger.error(f"Error getting nutritional advice: {str(e)}")
                 result['nutritional_advice'] = "영양 조언을 가져오는 중 오류가 발생했습니다."

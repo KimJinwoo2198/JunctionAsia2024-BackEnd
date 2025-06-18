@@ -119,13 +119,13 @@ def get_qa_chain() -> Optional[RetrievalQAWithSourcesChain]:
 
         답변 구조:
         {{
-            "general_safety": "임신 중 해당 식품의 전반적인 안전성 평가",
-            "nutritional_benefits": "임산부에게 제공하는 주요 영양소와 이점",
-            "potential_risks": "임신 중 해당 식품 섭취와 관련된 잠재적 위험",
-            "recommended_intake": "안전한 섭취량 및 빈도에 대한 조언",
-            "preparation_advice": "안전한 섭취를 위한 조리법 조언",
-            "alternatives": "필요시 더 안전하거나 영양가 있는 대체 식품 제안",
-            "is_safe": "true/false"
+            "안전성 평가": "임신 중 해당 식품의 전반적인 안전성 평가",
+            "주영양소와 이점": "임산부에게 제공하는 주요 영양소와 이점",
+            "잠재적 위험": "임신 중 해당 식품 섭취와 관련된 잠재적 위험",
+            "안전 섭취량 조언": "안전한 섭취량 및 빈도에 대한 조언",
+            "조리법 조언": "안전한 섭취를 위한 조리법 조언",
+            "대체 식품 제안": "필요시 더 안전하거나 영양가 있는 대체 식품 제안",
+            "is_safe": "추천/비추천"
         }}
 
         정확한 정보가 없는 경우, 일반적인 지식을 바탕으로 추론하되 그렇게 했음을 명시하세요.
@@ -161,15 +161,15 @@ def get_qa_chain() -> Optional[RetrievalQAWithSourcesChain]:
 qa_chain = get_qa_chain()
 
 # 음식 안전성 정보 제공
-def get_food_safety_info(food_name: str, style) -> Dict[str, Any]:
+def get_food_safety_info(food_name: str, dialect_style: str) -> Dict[str, Any]:
     if qa_chain is None:
         logger.error("QA chain is not initialized. Cannot get food safety info.")
         return {"answer": "Sorry, the system is currently unable to provide food safety information.", "is_safe": None}
 
-    query = f"{style.prompt}\n{food_name}이(가) 임산부한테 안전한가? 자세하게 안전성 분석해줘. 반드시 한국어로 답변해주세요."
+    query = f"{dialect_style}\n{food_name}이(가) 임산부한테 안전한가? 자세하게 안전성 분석해줘. 반드시 한국어로 답변해줘"
 
     try:
-        result = qa_chain({"question": query})
+        result = qa_chain({"question": query, "dialect_style": dialect_style})
         answer = result['answer']
 
         # Attempt to parse JSON response
@@ -191,7 +191,7 @@ def get_food_safety_info(food_name: str, style) -> Dict[str, Any]:
         return {"answer": "An error occurred while retrieving food safety information.", "is_safe": None}
 
 # 영양 조언 제공
-def get_nutritional_advice(food_name: str, user) -> Dict[str, Any]:
+def get_nutritional_advice(food_name: str, user, dialect_style) -> Dict[str, Any]:
     if qa_chain is None:
         logger.error("QA chain is not initialized. Cannot get nutritional advice.")
         return {"answer": "Sorry, the system is currently unable to provide nutritional advice.", "is_safe": None}
@@ -199,9 +199,9 @@ def get_nutritional_advice(food_name: str, user) -> Dict[str, Any]:
     try:
         profile = UserPregnancyProfile.objects.get(user=user)
         current_week = profile.current_week
-        query = f"What are the nutritional benefits and considerations for a pregnant woman in week {current_week} consuming {food_name}?"
+        query = f"{style}\nWhat are the nutritional benefits and considerations for a pregnant woman in week {current_week} consuming {food_name}?"
         
-        result = qa_chain({"question": query})
+        result = qa_chain({"question": query, "dialect_style": dialect_style})
         answer = result['answer']
 
         # JSON 형식으로 변환하여 안전성 여부를 추출
