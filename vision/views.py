@@ -129,15 +129,20 @@ class FoodViewSet(viewsets.ModelViewSet):
             
             # 안전 정보 및 영양 조언 추가
             try:
-                result['safety_info'] = get_food_safety_info(result['food_name'], response_style)
+                safety_info = get_food_safety_info(result['food_name'], response_style.prompt)
+                if isinstance(safety_info, dict):
+                    result['is_safe'] = safety_info.get('is_safe', False)
+                    result['safety_info'] = safety_info.get('summary', '')
+                else:
+                    result['safety_info'] = str(safety_info)
             except Exception as e:
-                logger.error(f"Error getting safety info: {str(e)}")
+                logger.error("Error getting safety info: %s", str(e))
                 result['safety_info'] = "안전 정보를 가져오는 중 오류가 발생했습니다."
 
             try:
-                result['nutritional_advice'] = get_nutritional_advice(result['food_name'], request.user, response_style)
+                result['nutritional_advice'] = get_nutritional_advice(result['food_name'], request.user, response_style.prompt)
             except Exception as e:
-                logger.error(f"Error getting nutritional advice: {str(e)}")
+                logger.error("Error getting nutritional advice: %s", str(e))
                 result['nutritional_advice'] = "영양 조언을 가져오는 중 오류가 발생했습니다."
             
             return Response(result)

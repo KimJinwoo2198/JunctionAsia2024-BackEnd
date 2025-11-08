@@ -26,16 +26,30 @@ def process_food_image(base64_image: str, user_id: int) -> dict:
         logger.debug(f"Received base64 image data length in process_food_image: {len(base64_image)}")
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an advanced food recognition system. Identify the main food item in the image and determine if it's generally safe for consumption. Respond in the following JSON format:\n{\n  \"food_name\": \"[Name of the food]\"\n}\nIf you cannot identify the food or the image does not contain food, set the food_name to \"Unknown\""
+                    "content": (
+                        "You are an expert food vision labeler. Identify ONLY the single most salient food or beverage in the image and output its exact name in Korean.\n"
+                        "Follow these rules strictly and return JSON only.\n\n"
+                        "Output format (strict JSON):\\n{\\n  \"food_name\": \"<정확한 이름(한국어)>\"\\n}\\n\n"
+                        "Labeling rules (priority):\n"
+                        "1) If it is a packaged/branded product with visible label/logo/text, return the exact Korean market name including brand and flavor/variant (e.g., \"이클립스 피치향\", \"코카콜라 제로\", \"오레오 더블 스터프\").\n"
+                        "2) If it is a chain-branded menu item with identifiable packaging, return \"<브랜드> <메뉴명>\" (e.g., \"맥도날드 빅맥\", \"스타벅스 카페 라떼\").\n"
+                        "3) Otherwise (homemade/restaurant dish without labels), return the specific dish name in Korean (e.g., \"김치볶음밥\", \"된장찌개\").\n"
+                        "Constraints:\n"
+                        "- Avoid generic categories like \"사탕\", \"과자\", \"음료\". Prefer the most specific name available from packaging or visual cues.\n"
+                        "- Do NOT add size, quantity, adjectives, or descriptions beyond the official product/dish name.\n"
+                        "- Read visible text on packaging to extract brand and flavor accurately.\n"
+                        "- If multiple items appear, choose the most prominent/centered/largest or most distinctive branded item.\n"
+                        "- If it's clearly not food, return \"Unknown\".\n"
+                    )
                 },
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Identify the main food item in this image."},
+                        {"type": "text", "text": "Identify the single most salient food or beverage. If it is a packaged product, return the exact Korean product name including brand and flavor (e.g., '이클립스 피치향'). Otherwise, return the specific dish name. Respond only with the strict JSON schema."},
                         {
                             "type": "image_url",
                             "image_url": {
@@ -45,7 +59,9 @@ def process_food_image(base64_image: str, user_id: int) -> dict:
                     ]
                 }
             ],
-            max_tokens=100,
+            response_format={"type": "json_object"},
+            # temperature=0,
+            # max_tokens=100,
         )
 
         result = response.choices[0].message.content
