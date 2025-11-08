@@ -21,3 +21,5 @@ langchain_openai==0.1.20
 pypdf==4.3.1
 chromadb==0.5.5
 faiss-cpu==1.8.0.post1
+psycopg2-binary==2.9.9
+gunicorn==21.2.0
