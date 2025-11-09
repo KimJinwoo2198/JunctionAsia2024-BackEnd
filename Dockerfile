@@ -1,5 +1,5 @@
 # 멀티스테이지 빌드를 사용한 최적화된 Dockerfile
-FROM python:3.11-slim as builder
+FROM python:3.12-slim as builder
 
 # 빌드 의존성 설치
 RUN apt-get update && apt-get install -y --no-install-recommends \

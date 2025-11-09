@@ -168,10 +168,6 @@ class LoginView(APIView):
             if user.is_locked:
                 raise AccountLockedException()
 
-            # 비밀번호 변경 요구 (60일마다)
-            if user.last_password_change < timezone.now() - timedelta(days=60):
-                return Response({"message": "비밀번호를 변경해야 합니다."}, status=status.HTTP_403_FORBIDDEN)
-
             refresh = RefreshToken.for_user(user)
             
             # 로그인 성공 처리

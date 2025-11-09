@@ -1,5 +1,6 @@
 import os
 import logging
+import hashlib
 from typing import List, Dict, Any, Optional, cast
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS, Chroma
@@ -8,6 +9,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import langchain.chains as lc_chains
 from langchain.prompts import PromptTemplate
 from django.conf import settings
+from django.core.cache import cache
 from vision.models import UserPregnancyProfile
 # 타입 체커가 Django 동적 속성(objects, DoesNotExist)을 인식하지 못하는 문제 방지
 UserPregnancyProfile = cast(Any, UserPregnancyProfile)
@@ -120,6 +122,7 @@ def create_or_load_index(index_name: str, pdf_directory: str):
 pdf_directory = os.path.join(settings.BASE_DIR, "nutrition_pdfs")
 db = None
 qa_chain: Optional[Any] = None
+GUIDANCE_CACHE_TIMEOUT = 1800  # 30분 캐시
 
 # QA 체인 생성
 def get_qa_chain() -> Optional[Any]:
@@ -150,14 +153,14 @@ def get_qa_chain() -> Optional[Any]:
         - 일반 임산부 식단 지침 부합 여부
 
         출력 형식 지침:
-        - 항목을 나누지 말고, 하나의 연속된 설명으로 요약하세요.
-        - 단, 판정 목적을 위해 최종 불리언 필드만 포함하세요.
-        - 유효한 JSON으로만 출력합니다.
+        - JSON 하나만 출력하고, 스키마의 모든 필드를 채우세요.
+        - 각 필드는 최소 한 문장 이상으로 자연스럽게 작성하세요.
 
-        출력(JSON 스키마):
+        출력(JSON 스키마 - 반드시 그대로 따르세요):
         {{
-          "summary": "임산부 관점에서의 안전성/영양/주의사항/섭취 팁을 하나의 문단 이상으로 자연스럽게 요약",
-          "is_safe": true 또는 false
+          "safety_summary": "임산부 관점에서의 안전성/주의사항/섭취 팁을 자연스럽게 요약",
+          "is_safe": true 또는 false,
+          "nutritional_advice": "임산부에게 필요한 영양 조언을 자연스럽게 요약"
         }}
 
         Context: {summaries}
@@ -190,76 +193,120 @@ def get_qa_chain() -> Optional[Any]:
 
 # 체인은 최초 사용 시 생성됩니다.
 
-# 음식 안전성 정보 제공
-def get_food_safety_info(food_name: str, dialect_style: str = "표준어") -> Dict[str, Any]:
+# 내부 헬퍼
+def _extract_json(answer: str) -> Optional[Dict[str, Any]]:
+    if not answer:
+        return None
+    match = re.search(r"\{[\s\S]*\}", answer)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        logger.error("Failed to decode JSON from answer: %s", answer)
+        return None
+
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "y"}:
+            return True
+        if lowered in {"false", "0", "no", "n"}:
+            return False
+    return False
+
+def _resolve_stage_context(user: Optional[Any]) -> Dict[str, str]:
+    default_context = {"week_context": "임산부가", "cache_tag": "generic"}
+    if user is None:
+        return default_context
+    try:
+        profile = UserPregnancyProfile.objects.get(user=user)  # type: ignore
+        current_week = getattr(profile, "current_week", None)
+        if current_week:
+            return {
+                "week_context": f"{current_week}주차 임산부가",
+                "cache_tag": f"week:{current_week}"
+            }
+    except UserPregnancyProfile.DoesNotExist:  # type: ignore
+        pass
+    return default_context
+
+def get_food_guidance(food_name: str, dialect_style: str = "표준어", user: Optional[Any] = None) -> Dict[str, Any]:
     chain = get_qa_chain()
     if chain is None:
-        logger.error("QA chain is not initialized. Cannot get food safety info.")
-        return {"answer": "Sorry, the system is currently unable to provide food safety information.", "is_safe": None}
+        logger.error("QA chain is not initialized. Cannot get food guidance.")
+        return {
+            "safety_summary": "현재 시스템이 안전성 정보를 제공할 수 없습니다.",
+            "is_safe": False,
+            "nutritional_advice": "현재 시스템이 영양 조언을 제공할 수 없습니다."
+        }
 
-    query = f"{dialect_style}\n{food_name}이(가) 임산부한테 안전한가? 자세하게 안전성 분석해줘. 반드시 한국어로 답변해줘"
+    stage_context = _resolve_stage_context(user)
+    normalized_food = food_name.strip()
+    cache_payload = f"{normalized_food.lower()}|{dialect_style}|{stage_context['cache_tag']}"
+    cache_key = f"food_guidance:{hashlib.sha256(cache_payload.encode('utf-8')).hexdigest()}"
+
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    query = (
+        f"{dialect_style}\n"
+        f"{stage_context['week_context']} {normalized_food}을(를) 섭취할 때의 안전성 평가와 영양 조언을 하나의 응답으로 제공해줘. "
+        "JSON 스키마 지침을 반드시 지키고 다른 텍스트는 출력하지 마."
+    )
 
     try:
         result = chain.invoke({"question": query, "dialect_style": dialect_style})
-        answer = result['answer']
+        answer = result.get("answer", "")
+        parsed = _extract_json(answer)
 
-        # Attempt to parse JSON response (extract JSON object if extra text is present)
-        try:
-            extracted = re.search(r"\{[\s\S]*\}", answer)
-            json_str = extracted.group(0) if extracted else answer
-            answer_json = json.loads(json_str)
-            summary_text = answer_json.get("summary", "")
-            is_safe = answer_json.get("is_safe", None)
-        except json.JSONDecodeError:
-            summary_text = answer.strip()
-            is_safe = None
+        if not parsed:
+            logger.error("QA chain response could not be parsed. Raw answer: %s", answer)
+            guidance = {
+                "safety_summary": "응답을 해석할 수 없어 기본 주의 조언을 제공합니다.",
+                "is_safe": False,
+                "nutritional_advice": "의료 전문가와 상담하여 적절한 섭취량을 확인하세요."
+            }
+        else:
+            safety_summary = parsed.get("safety_summary") or parsed.get("summary") or ""
+            nutritional_advice = parsed.get("nutritional_advice") or parsed.get("nutrition_summary") or ""
+            is_safe = _coerce_bool(parsed.get("is_safe"))
 
-        # Default to caution if "is_safe" is not determined (no noisy warnings)
-        if is_safe is None:
-            is_safe = False
+            if not safety_summary:
+                safety_summary = "임산부가 섭취 시 주의 사항을 의료 전문가와 상의하세요."
+            if not nutritional_advice:
+                nutritional_advice = "개인별 영양 상태에 따라 전문 의료진의 조언을 받는 것이 좋습니다."
 
-        return {"summary": summary_text, "is_safe": is_safe}
+            guidance = {
+                "safety_summary": safety_summary,
+                "is_safe": is_safe,
+                "nutritional_advice": nutritional_advice
+            }
+
+        cache.set(cache_key, guidance, GUIDANCE_CACHE_TIMEOUT)
+        return guidance
     except Exception as e:
-        logger.error(f"Error retrieving food safety information for {food_name}: {e}")
-        return {"answer": "An error occurred while retrieving food safety information.", "is_safe": None}
+        logger.error(f"Error retrieving food guidance for {food_name}: {e}")
+        return {
+            "safety_summary": "정보를 가져오는 중 오류가 발생했습니다.",
+            "is_safe": False,
+            "nutritional_advice": "정보를 가져오는 중 오류가 발생했습니다."
+        }
+
+# 음식 안전성 정보 제공
+def get_food_safety_info(food_name: str, dialect_style: str = "표준어") -> Dict[str, Any]:
+    guidance = get_food_guidance(food_name, dialect_style=dialect_style)
+    return {"summary": guidance["safety_summary"], "is_safe": guidance["is_safe"]}
 
 # 영양 조언 제공
 def get_nutritional_advice(food_name: str, user, dialect_style) -> str:
-    chain = get_qa_chain()
-    if chain is None:
-        logger.error("QA chain is not initialized. Cannot get nutritional advice.")
-        return {"answer": "Sorry, the system is currently unable to provide nutritional advice.", "is_safe": None}
-
-    try:
-        # 주차 정보가 있으면 포함하고, 없으면 기본 컨텍스트로 처리(로그 경고 없음)
-        try:
-            profile = UserPregnancyProfile.objects.get(user=user)  # type: ignore
-            current_week = profile.current_week
-            week_context = f"{current_week}주차 임산부가"
-        except UserPregnancyProfile.DoesNotExist:  # type: ignore
-            week_context = "임산부가"
-
-        query = (
-            f"{dialect_style}\n"
-            f"{week_context} {food_name}을(를) 섭취할 때의 영양적 이점과 고려사항을 자연스럽게 하나의 요약으로 알려줘."
-        )
-
-        result = chain.invoke({"question": query, "dialect_style": dialect_style})
-        answer = result['answer']
-
-        # JSON 형식에서 summary만 추출 (필요시 JSON만 추출)
-        try:
-            extracted = re.search(r"\{[\s\S]*\}", answer)
-            json_str = extracted.group(0) if extracted else answer
-            answer_json = json.loads(json_str)
-            summary_text = answer_json.get("summary", "")
-        except json.JSONDecodeError:
-            summary_text = answer.strip()
-
-        return summary_text
-    except Exception as e:
-        logger.error(f"Error retrieving nutritional advice for {food_name}: {e}")
-        return {"answer": "An error occurred while retrieving nutritional advice.", "is_safe": None}
+    guidance = get_food_guidance(food_name, dialect_style=dialect_style, user=user)
+    return guidance["nutritional_advice"]
 
 # 인덱스 업데이트
 def update_index(new_pdf_path: str):

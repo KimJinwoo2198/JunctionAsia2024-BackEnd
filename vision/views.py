@@ -4,9 +4,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from datetime import timedelta
-import base64
+import hashlib
 from django.core.cache import cache
-from django.db.models import Prefetch, Avg
+from django.db.models import Avg
 from .models import Food, FoodLog, UserPregnancyProfile, FoodRecommendation, FoodRecognitionLog, FoodRating, ResponseStyle
 from django.contrib.auth import get_user_model
 from .serializers import (
@@ -15,7 +15,7 @@ from .serializers import (
 )
 from .food_recognition import process_food_image
 from .nutrient_analysis import analyze_nutrients, get_personalized_recommendations
-from .rag_utils import get_food_safety_info, get_nutritional_advice
+from .rag_utils import get_food_guidance, get_food_safety_info
 from django.conf import settings
 
 from drf_yasg.utils import swagger_auto_schema
@@ -24,6 +24,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 CustomUser = get_user_model()
+RECOGNITION_CACHE_TIMEOUT = 1800  # 30분
 
 class FoodViewSet(viewsets.ModelViewSet):
     queryset = Food.objects.all()
@@ -110,9 +111,17 @@ class FoodViewSet(viewsets.ModelViewSet):
             # Base64 접두사 제거 (만약 포함되어 있다면)
             if 'base64,' in image_data:
                 image_data = image_data.split('base64,')[1]
-            
+            image_data = image_data.strip()
+
+            image_hash = hashlib.sha256(image_data.encode('utf-8')).hexdigest()
+            cache_namespace = f"vision:recognize:{request.user.id}:{response_style.name}:{image_hash}"
+            cached_payload = cache.get(cache_namespace)
+            if cached_payload:
+                logger.debug("Returning cached vision response for key %s", cache_namespace)
+                return Response(cached_payload)
+
             logger.debug(f"Base64 data length after prefix removal: {len(image_data)}")
-            
+
             # 음식 인식 처리 (Base64 인코딩된 이미지 데이터를 직접 전달)
             result = process_food_image(image_data, request.user.id)
             
@@ -127,23 +136,19 @@ class FoodViewSet(viewsets.ModelViewSet):
             if result.get('food_name') == "Unknown":
                 return Response({"error": "음식을 인식할 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
             
-            # 안전 정보 및 영양 조언 추가
+            # 안전 정보 및 영양 조언 추가 (단일 RAG 호출 + 캐시)
             try:
-                safety_info = get_food_safety_info(result['food_name'], response_style.prompt)
-                if isinstance(safety_info, dict):
-                    result['is_safe'] = safety_info.get('is_safe', False)
-                    result['safety_info'] = safety_info.get('summary', '')
-                else:
-                    result['safety_info'] = str(safety_info)
+                guidance = get_food_guidance(result['food_name'], dialect_style=response_style.prompt, user=request.user)
+                result['is_safe'] = guidance.get('is_safe', False)
+                result['safety_info'] = guidance.get('safety_summary', '')
+                result['nutritional_advice'] = guidance.get('nutritional_advice', '')
             except Exception as e:
-                logger.error("Error getting safety info: %s", str(e))
-                result['safety_info'] = "안전 정보를 가져오는 중 오류가 발생했습니다."
+                logger.error("Error getting combined guidance: %s", str(e))
+                result.setdefault('is_safe', False)
+                result['safety_info'] = result.get('safety_info', "안전 정보를 가져오는 중 오류가 발생했습니다.")
+                result['nutritional_advice'] = result.get('nutritional_advice', "영양 조언을 가져오는 중 오류가 발생했습니다.")
 
-            try:
-                result['nutritional_advice'] = get_nutritional_advice(result['food_name'], request.user, response_style.prompt)
-            except Exception as e:
-                logger.error("Error getting nutritional advice: %s", str(e))
-                result['nutritional_advice'] = "영양 조언을 가져오는 중 오류가 발생했습니다."
+            cache.set(cache_namespace, result, timeout=RECOGNITION_CACHE_TIMEOUT)
             
             return Response(result)
         

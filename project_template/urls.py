@@ -26,5 +26,6 @@ urlpatterns = [
     path('', include('Cdn.urls')),
     path('api/', include('vision.urls')),
     path('api/', include('comment.urls')),
+    path('api/', include('voice_assistant.urls')),
    #  path('api/notifications/', include('notifications.urls')),
 ]
