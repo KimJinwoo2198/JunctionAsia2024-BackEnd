@@ -9,7 +9,7 @@ services:
     container_name: junction_backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${WEB_PORT:-8000}:8000"
     env_file:
       - .env
     environment:
@@ -19,12 +19,30 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - MONGODB_URI=mongodb://mongo:27017
+      - VISION_PROVIDER=${VISION_PROVIDER:-lora}
+      - OLLAMA_BASE_URL=${DOCKER_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_VISION_MODEL=${OLLAMA_VISION_MODEL:-gemma4:e4b}
+      - OLLAMA_RAG_MODEL=${OLLAMA_RAG_MODEL:-gemma4:e4b}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-bge-m3}
+      - OLLAMA_TIMEOUT_SECONDS=${OLLAMA_TIMEOUT_SECONDS:-120}
+      - LOCAL_VLM_MODEL_ID=${LOCAL_VLM_MODEL_ID:-google/gemma-4-E4B}
+      - LOCAL_VLM_ADAPTER_DIR=/app/vlm_lora_adapter
+      - LOCAL_VLM_MAX_NEW_TOKENS=${LOCAL_VLM_MAX_NEW_TOKENS:-160}
+      - LOCAL_VLM_TORCH_DTYPE=${LOCAL_VLM_TORCH_DTYPE:-bfloat16}
+      - LOCAL_VLM_DEVICE_MAP=${LOCAL_VLM_DEVICE_MAP:-auto}
+      - LOCAL_VLM_REQUIRE_CUDA=${LOCAL_VLM_REQUIRE_CUDA:-true}
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-1}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-300}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    gpus: all
     volumes:
       - ./media:/app/media
       - ./staticfiles:/app/staticfiles
       - ./nutrition_pdfs:/app/nutrition_pdfs
       - ./nutrition_index:/app/nutrition_index
       - ./nutrition_index_chroma:/app/nutrition_index_chroma
+      - ./vlm_lora_training/outputs/gemma4-e4b-food-lora-1000step:/app/vlm_lora_adapter:ro
     depends_on:
       db:
         condition: service_healthy

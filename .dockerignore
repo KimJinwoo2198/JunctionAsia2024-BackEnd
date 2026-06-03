@@ -66,4 +66,9 @@ docker-compose.yml
 *.bak
 *.tmp
 .cache/
+.train-venv/
+tmp_gemma_check/
+vlm_lora_training/data/
+vlm_lora_training/cache/
+vlm_lora_training/outputs/
 

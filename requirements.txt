@@ -22,5 +22,12 @@ pypdf==4.3.1
 chromadb==0.5.5
 faiss-cpu==1.12.0
 psycopg[binary]==3.2.12
-setuptools>=68.0.0
+setuptools>=68.0.0,<81
 gunicorn==21.2.0
+torch>=2.12.0
+transformers>=5.5.0
+accelerate>=1.11.0
+peft>=0.19.0
+safetensors>=0.6.2
+sentencepiece>=0.2.1
+protobuf>=6.33.0

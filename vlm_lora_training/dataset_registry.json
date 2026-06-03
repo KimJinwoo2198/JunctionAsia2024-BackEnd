@@ -1,0 +1,64 @@
+{
+  "target_model": "google/gemma-4-E4B",
+  "task": "food-centric VLM LoRA SFT",
+  "datasets": [
+    {
+      "id": "ethz/food101",
+      "split": "train",
+      "rows": 75750,
+      "kind": "cooked_food_classification",
+      "use": "primary",
+      "notes": "101 food categories, image + ClassLabel. Good baseline for dish recognition."
+    },
+    {
+      "id": "berkeruveyik/vlm-food-4k-not-food-dataset",
+      "split": "train",
+      "rows": 3698,
+      "kind": "food_vlm_json",
+      "use": "primary",
+      "notes": "Already has image plus JSON-like food_items output. Filter to food rows."
+    },
+    {
+      "id": "Anilot/MIMEX",
+      "split": "train",
+      "rows": 10357,
+      "kind": "packaged_product_classification",
+      "use": "primary_filtered",
+      "notes": "Product images. Filter to food/drink product names only."
+    },
+    {
+      "id": "openfoodfacts/front_image_classification",
+      "split": "train",
+      "rows": 1000,
+      "kind": "packaged_food_front_image",
+      "use": "auxiliary",
+      "notes": "Food package front/other image classification. Useful for packaged-food image type recognition."
+    },
+    {
+      "id": "mrdbourke/DataComp-1B-food-and-drink-3M",
+      "split": "train",
+      "rows": 3108047,
+      "kind": "large_food_drink_web_images",
+      "use": "optional_large",
+      "notes": "Large mixed image-caption dataset with food/not-food filters. Use sampled gold rows only due size."
+    }
+  ],
+  "excluded_for_now": [
+    {
+      "id": "docjay131/receipts-ocr-dataset",
+      "reason": "Receipt/OCR data, user asked to avoid board/document-like data."
+    },
+    {
+      "id": "34data/nano-receipts",
+      "reason": "Synthetic receipt/OCR data."
+    },
+    {
+      "id": "openfoodfacts/nutrition-table-detection",
+      "reason": "Nutrition table detection, not food image recognition."
+    },
+    {
+      "id": "openfoodfacts/ingredient-detection",
+      "reason": "Ingredient table detection, not food image recognition."
+    }
+  ]
+}

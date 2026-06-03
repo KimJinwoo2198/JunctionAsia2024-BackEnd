@@ -165,3 +165,17 @@ uploads/*
 migrations/*
 media/*
 settings.py
+
+# Local VLM fine-tuning artifacts
+.train-venv/
+tmp_gemma_check/
+vlm_lora_training/data/
+vlm_lora_training/outputs/
+vlm_lora_training/cache/
+
+# Local runtime outputs
+runserver.err
+test_apple.jpg
+staticfiles/
+nutrition_index/ollama_*/
+nutrition_index/*_chroma/
