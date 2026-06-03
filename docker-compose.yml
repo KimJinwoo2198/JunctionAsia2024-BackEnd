@@ -26,7 +26,7 @@ services:
       - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-bge-m3}
       - OLLAMA_TIMEOUT_SECONDS=${OLLAMA_TIMEOUT_SECONDS:-120}
       - LOCAL_VLM_MODEL_ID=${LOCAL_VLM_MODEL_ID:-google/gemma-4-E4B}
-      - LOCAL_VLM_ADAPTER_DIR=/app/vlm_lora_adapter
+      - LOCAL_VLM_ADAPTER_DIR=${LOCAL_VLM_ADAPTER_DIR:-/app/vlm_lora_adapter/gemma4-e4b-food-lora-1000step}
       - LOCAL_VLM_MAX_NEW_TOKENS=${LOCAL_VLM_MAX_NEW_TOKENS:-160}
       - LOCAL_VLM_TORCH_DTYPE=${LOCAL_VLM_TORCH_DTYPE:-bfloat16}
       - LOCAL_VLM_DEVICE_MAP=${LOCAL_VLM_DEVICE_MAP:-auto}
@@ -42,7 +42,6 @@ services:
       - ./nutrition_pdfs:/app/nutrition_pdfs
       - ./nutrition_index:/app/nutrition_index
       - ./nutrition_index_chroma:/app/nutrition_index_chroma
-      - ./vlm_lora_training/outputs/gemma4-e4b-food-lora-1000step:/app/vlm_lora_adapter:ro
     depends_on:
       db:
         condition: service_healthy

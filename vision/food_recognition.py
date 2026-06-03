@@ -18,7 +18,7 @@ DEFAULT_OPENAI_VISION_MODELS = ("gpt-4o", "gpt-4o-mini")
 DEFAULT_LOCAL_VISION_MODEL = "gemma4:e4b"
 LOCAL_VISION_TIMEOUT_SECONDS = 120
 DEFAULT_LOCAL_VLM_MODEL_ID = "google/gemma-4-E4B"
-DEFAULT_LOCAL_VLM_ADAPTER_DIR = "vlm_lora_training/outputs/gemma4-e4b-food-lora-1000step"
+DEFAULT_LOCAL_VLM_ADAPTER_DIR = "vlm_lora_adapter/gemma4-e4b-food-lora-1000step"
 DEFAULT_LOCAL_VLM_MAX_NEW_TOKENS = 160
 
 _LOCAL_VLM_LOCK = threading.Lock()

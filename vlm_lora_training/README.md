@@ -64,12 +64,20 @@ The script defaults to bf16 LoRA rather than 4-bit QLoRA because Windows
 `bitsandbytes` compatibility can be uneven. Use `--use-4bit` only after the
 environment confirms that bitsandbytes CUDA kernels work.
 
-Verified local starter run:
+Verified local run:
 
 ```powershell
 python vlm_lora_training\prepare_food_vlm_sft.py --max-per-source 3000 --output-dir vlm_lora_training\data\food_vlm_sft
 python vlm_lora_training\train_gemma4_e4b_food_lora.py --dataset-dir vlm_lora_training\data\food_vlm_sft --max-steps 100 --output-dir vlm_lora_training\outputs\gemma4-e4b-food-lora-100step
+python vlm_lora_training\train_gemma4_e4b_food_lora.py --dataset-dir vlm_lora_training\data\food_vlm_sft --adapter-dir vlm_lora_training\outputs\gemma4-e4b-food-lora-100step\checkpoint-100 --max-steps 900 --output-dir vlm_lora_training\outputs\gemma4-e4b-food-lora-1000step
 ```
 
-That run produced 9,696 image samples and a 100-step LoRA adapter at
-`vlm_lora_training/outputs/gemma4-e4b-food-lora-100step`.
+That run produced 9,696 image samples and a 1000-step LoRA adapter. Runtime
+inference uses the checked-in minimal adapter files under
+`vlm_lora_adapter/gemma4-e4b-food-lora-1000step`.
+
+Final validation and smoke-test summary:
+
+- eval loss: 0.09397
+- held-out sample JSON parse: 30/30
+- strict name match: 20/30
